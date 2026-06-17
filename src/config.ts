@@ -112,3 +112,14 @@ export function resolveQrImagePath(): string | null {
 
   return null;
 }
+
+export function resolveImagePath(imageName: string): string | null {
+  for (const ext of SUPPORTED_IMAGE_EXTENSIONS) {
+    const candidate = path.join(config.imagesDir, imageName + ext);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}

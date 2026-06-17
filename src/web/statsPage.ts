@@ -1,5 +1,6 @@
 import { ACTION_LABELS, CLICK_ACTIONS, ClickAction } from '../clicks';
 import { ClickTotals, User, UserClickMap, UserStats } from '../db';
+import { Payment, PaymentStats } from '../payments/types';
 
 function escapeHtml(value: string): string {
   return value
@@ -53,10 +54,16 @@ export interface StatsPageData {
   users: User[];
   clickTotals: ClickTotals;
   userClicks: UserClickMap;
+  paymentStats: PaymentStats;
+  recentPayments: Payment[];
+}
+
+function paymentStatusLabel(status: Payment['status']): string {
+  return status === 'confirmed' ? 'Подтверждено' : 'Ожидает';
 }
 
 export function renderStatsPage(data: StatsPageData): string {
-  const { stats, users, clickTotals, userClicks } = data;
+  const { stats, users, clickTotals, userClicks, paymentStats, recentPayments } = data;
 
   const clickCards = CLICK_ACTIONS.map(
     (action) => `
@@ -96,6 +103,21 @@ export function renderStatsPage(data: StatsPageData): string {
     .join('');
 
   const totalClicks = CLICK_ACTIONS.reduce((sum, action) => sum + clickTotals[action], 0);
+
+  const paymentRows = recentPayments
+    .map(
+      (payment) => `
+        <tr>
+          <td>#${payment.id}</td>
+          <td>${payment.telegram_id}</td>
+          <td>${escapeHtml(payment.fio)}</td>
+          <td>${paymentStatusLabel(payment.status)}</td>
+          <td>${payment.ticket_count ?? '—'}</td>
+          <td>${formatDate(payment.created_at)}</td>
+          <td>${payment.confirmed_at ? formatDate(payment.confirmed_at) : '—'}</td>
+        </tr>`,
+    )
+    .join('');
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -243,6 +265,50 @@ export function renderStatsPage(data: StatsPageData): string {
     <div class="section">
       <h2>Клики по кнопкам (всего: ${totalClicks})</h2>
       <div class="cards">${clickCards}</div>
+    </div>
+
+    <div class="section">
+      <h2>Оплаты</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="card-label">Всего заявок</div>
+          <div class="card-value">${paymentStats.total}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Ожидают подтверждения</div>
+          <div class="card-value">${paymentStats.pending}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Подтверждено</div>
+          <div class="card-value">${paymentStats.confirmed}</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Билетов продано</div>
+          <div class="card-value">${paymentStats.ticketsSold}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section table-wrap">
+      ${
+        recentPayments.length > 0
+          ? `<h2 style="padding: 20px 20px 0; margin: 0;">Последние заявки на оплату</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Telegram ID</th>
+            <th>ФИО</th>
+            <th>Статус</th>
+            <th>Билетов</th>
+            <th>Создана</th>
+            <th>Подтверждена</th>
+          </tr>
+        </thead>
+        <tbody>${paymentRows}</tbody>
+      </table>`
+          : ''
+      }
     </div>
 
     <div class="section table-wrap">

@@ -1,7 +1,7 @@
 import { Context, Input, Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 import { ClickAction } from '../clicks';
-import { config, resolveVideoPath } from '../config';
+import { config, resolveImagePath, resolveVideoPath } from '../config';
 import { clearPaymentState, getUser, recordClick, saveUser } from '../db';
 import { BUTTONS, MAIN_MENU_BUTTON_TEXTS } from '../keyboards';
 import {
@@ -14,6 +14,7 @@ import {
   showTicketsMenu,
   startQrPaymentFlow,
 } from '../payment';
+import { registerAdminHandlers, handleAdminTicketCountText } from '../adminHandlers';
 import { extractUserFromContext } from '../userTracking';
 import { getVideoDimensions } from '../videoUtils';
 
@@ -51,8 +52,20 @@ async function sendLocalVideo(
   await ctx.reply(messageText.trim() || config.content.fallback, config.mainMenuKeyboard);
 }
 
+async function sendLocalImage(ctx: Context, imageName: string): Promise<void> {
+  const filePath = resolveImagePath(imageName);
+  if (!filePath) {
+    console.warn(`Image "${imageName}" not found in images directory`);
+    return;
+  }
+
+  await ctx.replyWithPhoto(Input.fromLocalFile(filePath));
+}
+
 export function registerHandlers(bot: Telegraf<Context>): void {
   const { content } = config;
+
+  registerAdminHandlers(bot);
 
   bot.start(async (ctx) => {
     await trackAction(ctx, 'start');
@@ -69,6 +82,7 @@ export function registerHandlers(bot: Telegraf<Context>): void {
     await trackAction(ctx, 'about');
     await clearPaymentState(ctx.from!.id);
     const section = content.sections.about;
+    await sendLocalImage(ctx, 'information');
     await sendLocalVideo(ctx, section.video, section.message);
   });
 
@@ -76,6 +90,8 @@ export function registerHandlers(bot: Telegraf<Context>): void {
     await trackAction(ctx, 'prices');
     await clearPaymentState(ctx.from!.id);
     const section = content.sections.prices;
+    await sendLocalImage(ctx, 'standart-tariff');
+    await sendLocalImage(ctx, 'creator-tariff');
     await sendLocalVideo(ctx, section.video, section.message);
   });
 
@@ -138,6 +154,10 @@ export function registerHandlers(bot: Telegraf<Context>): void {
     const text = ctx.message.text;
 
     if (text === BUTTONS.back) {
+      return;
+    }
+
+    if (await handleAdminTicketCountText(ctx, bot, text)) {
       return;
     }
 

@@ -1,6 +1,7 @@
 import http from 'http';
 import { config } from './config';
 import { getAllUsers, getClickTotals, getUserClickMap, getUserStats } from './db';
+import { getPaymentStats, getRecentPayments } from './payments/repository';
 import { renderStatsPage } from './web/statsPage';
 
 function isAuthorized(req: http.IncomingMessage): boolean {
@@ -46,13 +47,23 @@ export function startStatsServer(): http.Server {
     }
 
     try {
-      const [stats, users, clickTotals, userClicks] = await Promise.all([
-        getUserStats(),
-        getAllUsers(),
-        getClickTotals(),
-        getUserClickMap(),
-      ]);
-      const html = renderStatsPage({ stats, users, clickTotals, userClicks });
+      const [stats, users, clickTotals, userClicks, paymentStats, recentPayments] =
+        await Promise.all([
+          getUserStats(),
+          getAllUsers(),
+          getClickTotals(),
+          getUserClickMap(),
+          getPaymentStats(),
+          getRecentPayments(30),
+        ]);
+      const html = renderStatsPage({
+        stats,
+        users,
+        clickTotals,
+        userClicks,
+        paymentStats,
+        recentPayments,
+      });
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);

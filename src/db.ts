@@ -2,6 +2,7 @@ import pg from 'pg';
 import { CLICK_ACTIONS, ClickAction } from './clicks';
 import { config } from './config';
 import { TelegramUserInput } from './userTracking';
+import { initPaymentsTable } from './payments/repository';
 
 export interface User {
   telegram_id: number;
@@ -82,6 +83,8 @@ export async function initDb(): Promise<void> {
       PRIMARY KEY (telegram_id, action)
     )
   `);
+
+  await initPaymentsTable();
 }
 
 export async function saveUser(user: TelegramUserInput): Promise<User> {

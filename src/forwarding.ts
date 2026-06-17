@@ -1,6 +1,8 @@
 import { Context, Markup, Telegraf } from 'telegraf';
 import { config } from './config';
 import { User } from './db';
+import { buildPaymentAdminKeyboard } from './adminHandlers';
+import { createPayment } from './payments/repository';
 
 export function formatSenderInfo(ctx: Context): string {
   const user = ctx.from;
@@ -28,7 +30,7 @@ function buildContactKeyboard(ctx: Context) {
     buttons.push(Markup.button.url(`📱 @${user.username}`, `https://t.me/${user.username}`));
   }
 
-  return Markup.inlineKeyboard(buttons);
+  return Markup.inlineKeyboard([buttons]);
 }
 
 export function isPdfDocument(document: {
@@ -83,33 +85,42 @@ export async function forwardPaymentToAdmin(
   bot: Telegraf,
   user: User,
 ): Promise<void> {
-  if (!user.pending_receipt_file_id || !user.pending_fio) {
+  if (!user.pending_receipt_file_id || !user.pending_fio || !user.pending_receipt_kind) {
     return;
   }
-
-  const caption = [
-    'Оплата Mingle Forum',
-    formatSenderInfo(ctx),
-    `ФИО: ${user.pending_fio}`,
-    '',
-    'Нажмите кнопку ниже, чтобы написать пользователю.',
-  ].join('\n');
 
   if (!config.forwardToChatId) {
     console.warn('FORWARD_TO_CHAT_ID is not set, payment was not forwarded');
     return;
   }
 
-  const keyboard = buildContactKeyboard(ctx);
+  const payment = await createPayment({
+    telegramId: user.telegram_id,
+    fio: user.pending_fio,
+    receiptFileId: user.pending_receipt_file_id,
+    receiptKind: user.pending_receipt_kind as 'photo' | 'document',
+  });
+
+  const caption = [
+    'Оплата Mingle Forum',
+    `Заявка #${payment.id}`,
+    '⏳ Ожидает подтверждения',
+    formatSenderInfo(ctx),
+    `ФИО: ${user.pending_fio}`,
+    '',
+    'Подтвердите оплату или укажите количество билетов.',
+  ].join('\n');
+
+  const keyboard = buildPaymentAdminKeyboard(payment.id, ctx);
   await bot.telegram.sendMessage(config.forwardToChatId, caption, keyboard);
 
   if (user.pending_receipt_kind === 'photo') {
     await bot.telegram.sendPhoto(config.forwardToChatId, user.pending_receipt_file_id, {
-      caption: 'Чек об оплате',
+      caption: `Чек об оплате · заявка #${payment.id}`,
     });
   } else {
     await bot.telegram.sendDocument(config.forwardToChatId, user.pending_receipt_file_id, {
-      caption: 'Чек об оплате',
+      caption: `Чек об оплате · заявка #${payment.id}`,
     });
   }
 }
