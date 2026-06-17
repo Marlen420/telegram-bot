@@ -1,4 +1,12 @@
-export type ClickAction = 'start' | 'about' | 'prices' | 'bonuses' | 'tickets' | 'other';
+export type ClickAction =
+  | 'start'
+  | 'about'
+  | 'prices'
+  | 'bonuses'
+  | 'tickets'
+  | 'pay_qr'
+  | 'back'
+  | 'other';
 
 export const CLICK_ACTIONS: ClickAction[] = [
   'start',
@@ -6,6 +14,8 @@ export const CLICK_ACTIONS: ClickAction[] = [
   'prices',
   'bonuses',
   'tickets',
+  'pay_qr',
+  'back',
   'other',
 ];
 
@@ -15,5 +25,7 @@ export const ACTION_LABELS: Record<ClickAction, string> = {
   prices: 'Цены',
   bonuses: 'Подробнее о форуме',
   tickets: 'Как купить билеты',
+  pay_qr: 'Оплатить по QR',
+  back: 'Вернуться в меню',
   other: 'Другое',
 };

@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import { backToMenuKeyboard, mainMenuKeyboard, ticketsKeyboard } from './keyboards';
 
 dotenv.config();
 
@@ -20,7 +21,14 @@ export interface VideoSection {
 
 export interface TicketsSection {
   message: string;
-  buttonText: string;
+}
+
+export interface PaymentTexts {
+  qrInstructions: string;
+  needFio: string;
+  needReceipt: string;
+  invalidReceipt: string;
+  completed: string;
 }
 
 export interface ContentConfig {
@@ -32,6 +40,7 @@ export interface ContentConfig {
     bonuses: VideoSection;
     tickets: TicketsSection;
   };
+  payment: PaymentTexts;
 }
 
 function loadContentConfig(configPath: string): ContentConfig {
@@ -47,6 +56,9 @@ function loadContentConfig(configPath: string): ContentConfig {
 
 const contentConfigPath = process.env.CONTENT_CONFIG_PATH ?? './config/content.json';
 const videosDir = process.env.VIDEOS_DIR ?? './videos';
+const imagesDir = process.env.IMAGES_DIR ?? './images';
+const forwardToChatIdRaw = process.env.FORWARD_TO_CHAT_ID;
+const qrImageName = process.env.QR_IMAGE_NAME ?? 'qr-payment';
 
 export const config = {
   botToken: requireEnv('BOT_TOKEN'),
@@ -55,12 +67,20 @@ export const config = {
   port: Number(process.env.PORT ?? 3000),
   statsUser: process.env.STATS_USER ?? 'admin',
   statsPassword: process.env.STATS_PASSWORD ?? '',
+  forwardToChatId: forwardToChatIdRaw ? Number(forwardToChatIdRaw) : null,
+  forwardToUsername: process.env.FORWARD_TO_USERNAME ?? 'pratovv',
   contentConfigPath,
   videosDir: path.resolve(videosDir),
+  imagesDir: path.resolve(imagesDir),
+  qrImageName,
   content: loadContentConfig(contentConfigPath),
+  mainMenuKeyboard,
+  ticketsKeyboard,
+  backToMenuKeyboard,
 };
 
 const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.MP4', '.mov', '.MOV'];
+const SUPPORTED_IMAGE_EXTENSIONS = ['.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG'];
 
 export function resolveVideoPath(filename: string): string | null {
   const exactPath = path.join(config.videosDir, filename);
@@ -74,6 +94,17 @@ export function resolveVideoPath(filename: string): string | null {
 
   for (const ext of SUPPORTED_VIDEO_EXTENSIONS) {
     const candidate = path.join(config.videosDir, baseName + ext);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+export function resolveQrImagePath(): string | null {
+  for (const ext of SUPPORTED_IMAGE_EXTENSIONS) {
+    const candidate = path.join(config.imagesDir, config.qrImageName + ext);
     if (fs.existsSync(candidate)) {
       return candidate;
     }

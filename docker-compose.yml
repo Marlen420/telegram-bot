@@ -28,6 +28,7 @@ services:
       - .env
     environment:
       VIDEOS_DIR: /app/videos
+      IMAGES_DIR: /app/images
       CONTENT_CONFIG_PATH: /app/config/content.json
       DATABASE_URL: postgresql://${POSTGRES_USER:-forum_bot}:${POSTGRES_PASSWORD:-forum_bot_secret}@db:5432/${POSTGRES_DB:-forum_bot}
     ports:

@@ -1,9 +1,19 @@
-import { Context, Input, Markup, Telegraf } from 'telegraf';
+import { Context, Input, Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 import { ClickAction } from '../clicks';
 import { config, resolveVideoPath } from '../config';
-import { recordClick, saveUser } from '../db';
-import { BUTTONS, mainMenuKeyboard } from '../keyboards';
+import { clearPaymentState, getUser, recordClick, saveUser } from '../db';
+import { BUTTONS, MAIN_MENU_BUTTON_TEXTS } from '../keyboards';
+import {
+  handleGeneralPdf,
+  handleGeneralPhoto,
+  handlePaymentDocument,
+  handlePaymentPhoto,
+  handlePaymentText,
+  returnToMainMenu,
+  showTicketsMenu,
+  startQrPaymentFlow,
+} from '../payment';
 import { extractUserFromContext } from '../userTracking';
 import { getVideoDimensions } from '../videoUtils';
 
@@ -12,6 +22,10 @@ async function trackAction(ctx: Context, action: ClickAction): Promise<void> {
   if (!userData) return;
   await saveUser(userData);
   await recordClick(userData.id, action);
+}
+
+function isMainMenuButton(text: string): boolean {
+  return (MAIN_MENU_BUTTON_TEXTS as readonly string[]).includes(text);
 }
 
 async function sendLocalVideo(
@@ -23,7 +37,7 @@ async function sendLocalVideo(
   if (!filePath) {
     await ctx.reply(
       `Видео «${videoFile}» не найдено. Положите файл about/prices/bonuses в папку videos/ (форматы .mp4 или .MOV)`,
-      mainMenuKeyboard,
+      config.mainMenuKeyboard,
     );
     return;
   }
@@ -34,7 +48,7 @@ async function sendLocalVideo(
     ...(dimensions ?? {}),
     supports_streaming: true,
   });
-  await ctx.reply(messageText.trim() || config.content.fallback, mainMenuKeyboard);
+  await ctx.reply(messageText.trim() || config.content.fallback, config.mainMenuKeyboard);
 }
 
 export function registerHandlers(bot: Telegraf<Context>): void {
@@ -42,34 +56,44 @@ export function registerHandlers(bot: Telegraf<Context>): void {
 
   bot.start(async (ctx) => {
     await trackAction(ctx, 'start');
-    await ctx.reply(content.welcome, mainMenuKeyboard);
+    await clearPaymentState(ctx.from!.id);
+    await ctx.reply(content.welcome, config.mainMenuKeyboard);
+  });
+
+  bot.hears(BUTTONS.back, async (ctx) => {
+    await trackAction(ctx, 'back');
+    await returnToMainMenu(ctx);
   });
 
   bot.hears(BUTTONS.about, async (ctx) => {
     await trackAction(ctx, 'about');
+    await clearPaymentState(ctx.from!.id);
     const section = content.sections.about;
     await sendLocalVideo(ctx, section.video, section.message);
   });
 
   bot.hears(BUTTONS.prices, async (ctx) => {
     await trackAction(ctx, 'prices');
+    await clearPaymentState(ctx.from!.id);
     const section = content.sections.prices;
     await sendLocalVideo(ctx, section.video, section.message);
   });
 
   bot.hears(BUTTONS.bonuses, async (ctx) => {
     await trackAction(ctx, 'bonuses');
+    await clearPaymentState(ctx.from!.id);
     const section = content.sections.bonuses;
     await sendLocalVideo(ctx, section.video, section.message);
   });
 
   bot.hears(BUTTONS.tickets, async (ctx) => {
     await trackAction(ctx, 'tickets');
-    const section = content.sections.tickets;
-    await ctx.reply(
-      section.message,
-      Markup.inlineKeyboard([Markup.button.url(section.buttonText, config.ticketUrl)]),
-    );
+    await showTicketsMenu(ctx);
+  });
+
+  bot.hears(BUTTONS.payQr, async (ctx) => {
+    await trackAction(ctx, 'pay_qr');
+    await startQrPaymentFlow(ctx);
   });
 
   bot.on(message('contact'), async (ctx) => {
@@ -81,11 +105,60 @@ export function registerHandlers(bot: Telegraf<Context>): void {
     if (!userData) return;
     await saveUser(userData);
     await recordClick(userData.id, 'other');
-    await ctx.reply('Спасибо! Контакт сохранён.', mainMenuKeyboard);
+    await ctx.reply('Спасибо! Контакт сохранён.', config.mainMenuKeyboard);
+  });
+
+  bot.on(message('photo'), async (ctx) => {
+    const userData = extractUserFromContext(ctx);
+    if (userData) {
+      await saveUser(userData);
+    }
+
+    if (await handlePaymentPhoto(ctx, bot)) {
+      return;
+    }
+
+    await handleGeneralPhoto(ctx, bot);
+  });
+
+  bot.on(message('document'), async (ctx) => {
+    const userData = extractUserFromContext(ctx);
+    if (userData) {
+      await saveUser(userData);
+    }
+
+    if (await handlePaymentDocument(ctx, bot)) {
+      return;
+    }
+
+    await handleGeneralPdf(ctx, bot);
   });
 
   bot.on(message('text'), async (ctx) => {
+    const text = ctx.message.text;
+
+    if (text === BUTTONS.back) {
+      return;
+    }
+
+    if (isMainMenuButton(text) || text === BUTTONS.payQr) {
+      return;
+    }
+
+    const userData = extractUserFromContext(ctx);
+    if (userData) {
+      await saveUser(userData);
+    }
+
+    const user = await getUser(ctx.from!.id);
+    if (user?.awaiting_payment) {
+      await recordClick(user.telegram_id, 'other');
+      if (await handlePaymentText(ctx, bot, text)) {
+        return;
+      }
+    }
+
     await trackAction(ctx, 'other');
-    await ctx.reply(content.fallback, mainMenuKeyboard);
+    await ctx.reply(content.fallback, config.mainMenuKeyboard);
   });
 }

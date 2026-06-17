@@ -16,6 +16,10 @@ export interface User {
   phone: string | null;
   phone_shared_at: string | null;
   last_message_text: string | null;
+  awaiting_payment: boolean;
+  pending_receipt_file_id: string | null;
+  pending_receipt_kind: string | null;
+  pending_fio: string | null;
   first_seen_at: string;
   last_seen_at: string;
 }
@@ -33,6 +37,10 @@ async function migrateUsersTable(): Promise<void> {
     'phone TEXT',
     'phone_shared_at TIMESTAMPTZ',
     'last_message_text TEXT',
+    'awaiting_payment BOOLEAN DEFAULT false',
+    'pending_receipt_file_id TEXT',
+    'pending_receipt_kind TEXT',
+    'pending_fio TEXT',
   ];
 
   for (const column of columns) {
@@ -55,6 +63,10 @@ export async function initDb(): Promise<void> {
       phone TEXT,
       phone_shared_at TIMESTAMPTZ,
       last_message_text TEXT,
+      awaiting_payment BOOLEAN DEFAULT false,
+      pending_receipt_file_id TEXT,
+      pending_receipt_kind TEXT,
+      pending_fio TEXT,
       first_seen_at TIMESTAMPTZ NOT NULL,
       last_seen_at TIMESTAMPTZ NOT NULL
     )
@@ -124,6 +136,67 @@ export async function saveUser(user: TelegramUserInput): Promise<User> {
 export async function getUser(telegramId: number): Promise<User | undefined> {
   const result = await pool.query<User>('SELECT * FROM users WHERE telegram_id = $1', [telegramId]);
   return result.rows[0];
+}
+
+export async function setAwaitingPayment(telegramId: number, awaiting: boolean): Promise<void> {
+  if (!awaiting) {
+    await clearPaymentState(telegramId);
+    return;
+  }
+
+  await pool.query(
+    `
+    UPDATE users
+    SET
+      awaiting_payment = true,
+      pending_receipt_file_id = NULL,
+      pending_receipt_kind = NULL,
+      pending_fio = NULL
+    WHERE telegram_id = $1
+    `,
+    [telegramId],
+  );
+}
+
+export async function savePendingReceipt(
+  telegramId: number,
+  fileId: string,
+  kind: 'photo' | 'document',
+): Promise<void> {
+  await pool.query(
+    `
+    UPDATE users
+    SET pending_receipt_file_id = $2, pending_receipt_kind = $3
+    WHERE telegram_id = $1
+    `,
+    [telegramId, fileId, kind],
+  );
+}
+
+export async function savePendingFio(telegramId: number, fio: string): Promise<void> {
+  await pool.query(
+    `
+    UPDATE users
+    SET pending_fio = $2
+    WHERE telegram_id = $1
+    `,
+    [telegramId, fio],
+  );
+}
+
+export async function clearPaymentState(telegramId: number): Promise<void> {
+  await pool.query(
+    `
+    UPDATE users
+    SET
+      awaiting_payment = false,
+      pending_receipt_file_id = NULL,
+      pending_receipt_kind = NULL,
+      pending_fio = NULL
+    WHERE telegram_id = $1
+    `,
+    [telegramId],
+  );
 }
 
 export interface UserStats {

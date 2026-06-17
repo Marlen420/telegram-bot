@@ -21,6 +21,7 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY config ./config
 COPY scripts ./scripts
+COPY images ./images
 COPY videos ./videos-raw
 
 RUN chmod +x scripts/optimize-videos.sh && \
@@ -29,6 +30,7 @@ RUN chmod +x scripts/optimize-videos.sh && \
 
 ENV NODE_ENV=production
 ENV VIDEOS_DIR=/app/videos
+ENV IMAGES_DIR=/app/images
 ENV CONTENT_CONFIG_PATH=/app/config/content.json
 ENV PORT=3000
 
