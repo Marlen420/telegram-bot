@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: forum-telegram-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-forum_bot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forum_bot_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-forum_bot}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-forum_bot} -d ${POSTGRES_DB:-forum_bot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build: .
+    container_name: forum-telegram-bot
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      VIDEOS_DIR: /app/videos
+      CONTENT_CONFIG_PATH: /app/config/content.json
+      DATABASE_URL: postgresql://${POSTGRES_USER:-forum_bot}:${POSTGRES_PASSWORD:-forum_bot_secret}@db:5432/${POSTGRES_DB:-forum_bot}
+
+volumes:
+  postgres-data:

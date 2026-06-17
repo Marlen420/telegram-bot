@@ -1,0 +1,14 @@
+# ОПЦИОНАЛЬНО — только если Docker Desktop имеет доступ к папке проекта
+# (Settings → Resources → File sharing).
+#
+# ВАЖНО: файл docker-compose.override.yml подхватывается автоматически.
+# На macOS в папке Documents это вызывает ошибку "operation not permitted".
+# Не создавайте override, если не настроили File sharing.
+#
+# cp docker-compose.override.example.yml docker-compose.override.yml
+
+services:
+  bot:
+    volumes:
+      - ./videos:/app/videos:ro
+      - ./config/content.json:/app/config/content.json:ro

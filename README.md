@@ -1,0 +1,107 @@
+# Forum Telegram Bot
+
+Telegram-бот для форума с сохранением пользователей, локальными видео и ссылкой на покупку билетов.
+
+## Возможности
+
+- Сохранение данных пользователей в PostgreSQL (id, username, имя, даты первого и последнего визита)
+- Меню из 4 кнопок:
+  1. **О форуме** — текст + локальное видео
+  2. **Цены** — текст + локальное видео
+  3. **Бонусы** — текст + локальное видео
+  4. **Как купить билеты** — текст + кнопка-ссылка на сайт
+
+## Настройка
+
+### 1. Переменные окружения (`.env`)
+
+```bash
+cp .env.example .env
+```
+
+Заполните:
+- `BOT_TOKEN` — токен от [@BotFather](https://t.me/BotFather)
+- `TICKET_URL` — ссылка на сайт покупки билетов
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — параметры PostgreSQL
+- `DATABASE_URL` — строка подключения к БД
+
+### 2. Тексты ответов (`config/content.json`)
+
+Отредактируйте файл `config/content.json` — приветствие, тексты разделов, имена видеофайлов.
+
+### 3. Локальные видео (`videos/`)
+
+Поддерживаются форматы **`.mp4`** и **`.MOV`**. В `content.json` укажите имя без расширения.
+
+При сборке Docker-образа видео автоматически сжимаются (ffmpeg, CRF 27, то же разрешение) и поворачиваются в правильную вертикальную ориентацию.
+
+Локально (нужен `ffmpeg`, например `brew install ffmpeg`):
+
+```bash
+npm run optimize-videos
+```
+
+Создаст рядом файлы `about.mp4`, `prices.mp4`, `bonuses.mp4` — бот предпочитает их перед `.MOV`.
+
+## Запуск (Docker)
+
+Поднимает PostgreSQL и бота. Видео и `config/content.json` копируются в образ при сборке:
+
+```bash
+docker compose up -d --build
+docker compose logs -f bot
+```
+
+После изменения видео или текстов пересоберите образ:
+
+```bash
+docker compose up -d --build bot
+```
+
+### Ошибка `operation not permitted` при mount
+
+На macOS Docker Desktop по умолчанию не имеет доступа к папке `Documents`. Bind-mount убран из `docker-compose.yml` — контент встроен в образ.
+
+Если нужно редактировать файлы без пересборки:
+1. Docker Desktop → **Settings** → **Resources** → **File sharing** → добавьте путь к проекту
+2. `cp docker-compose.override.example.yml docker-compose.override.yml`
+3. `docker compose up -d --build`
+
+Только база данных:
+
+```bash
+docker compose up -d db
+```
+
+Бот в Docker подключается к БД по адресу `db:5432`. Данные хранятся в volume `postgres-data`.
+
+## Локальная разработка
+
+1. Запустите PostgreSQL:
+
+```bash
+docker compose up -d db
+```
+
+2. В `.env` укажите подключение к localhost:
+
+```
+DATABASE_URL=postgresql://forum_bot:forum_bot_secret@localhost:5432/forum_bot
+```
+
+3. Запустите бота:
+
+```bash
+npm install
+npm run dev
+```
+
+## Данные пользователей
+
+Таблица `users` создаётся автоматически при старте бота.
+
+Подключиться к БД вручную:
+
+```bash
+docker compose exec db psql -U forum_bot -d forum_bot -c "SELECT * FROM users;"
+```

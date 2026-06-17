@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+.env
+*.db
+docker-compose.override.yml
+.DS_Store
+videos/.DS_Store
