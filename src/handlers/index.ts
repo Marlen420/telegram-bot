@@ -15,8 +15,26 @@ import {
   startQrPaymentFlow,
 } from '../payment';
 import { registerAdminHandlers, handleAdminTicketCountText } from '../adminHandlers';
+import {
+  handleBroadcastAdminMessage,
+  handleBroadcastAdminText,
+  registerBroadcastHandlers,
+} from '../broadcasts/handlers';
 import { extractUserFromContext } from '../userTracking';
 import { getVideoDimensions } from '../videoUtils';
+
+function isAdmin(ctx: Context): boolean {
+  return Boolean(config.forwardToChatId && ctx.from?.id === config.forwardToChatId);
+}
+
+function adminMenuKeyboard() {
+  return {
+    reply_markup: {
+      keyboard: [[{ text: '📣 Рассылки' }]],
+      resize_keyboard: true,
+    },
+  };
+}
 
 async function trackAction(ctx: Context, action: ClickAction): Promise<void> {
   const userData = extractUserFromContext(ctx);
@@ -66,10 +84,15 @@ export function registerHandlers(bot: Telegraf<Context>): void {
   const { content } = config;
 
   registerAdminHandlers(bot);
+  registerBroadcastHandlers(bot);
 
   bot.start(async (ctx) => {
     await trackAction(ctx, 'start');
     await clearPaymentState(ctx.from!.id);
+    if (isAdmin(ctx)) {
+      await ctx.reply(content.welcome, adminMenuKeyboard());
+      return;
+    }
     await ctx.reply(content.welcome, config.mainMenuKeyboard);
   });
 
@@ -125,6 +148,10 @@ export function registerHandlers(bot: Telegraf<Context>): void {
   });
 
   bot.on(message('photo'), async (ctx) => {
+    if (await handleBroadcastAdminMessage(ctx)) {
+      return;
+    }
+
     const userData = extractUserFromContext(ctx);
     if (userData) {
       await saveUser(userData);
@@ -138,6 +165,10 @@ export function registerHandlers(bot: Telegraf<Context>): void {
   });
 
   bot.on(message('document'), async (ctx) => {
+    if (await handleBroadcastAdminMessage(ctx)) {
+      return;
+    }
+
     const userData = extractUserFromContext(ctx);
     if (userData) {
       await saveUser(userData);
@@ -150,10 +181,20 @@ export function registerHandlers(bot: Telegraf<Context>): void {
     await handleGeneralPdf(ctx, bot);
   });
 
+  for (const mediaType of ['video', 'video_note', 'voice', 'audio', 'animation', 'sticker'] as const) {
+    bot.on(message(mediaType), async (ctx) => {
+      await handleBroadcastAdminMessage(ctx);
+    });
+  }
+
   bot.on(message('text'), async (ctx) => {
     const text = ctx.message.text;
 
     if (text === BUTTONS.back) {
+      return;
+    }
+
+    if (await handleBroadcastAdminText(ctx, text)) {
       return;
     }
 

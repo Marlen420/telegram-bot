@@ -3,6 +3,7 @@ import { CLICK_ACTIONS, ClickAction } from './clicks';
 import { config } from './config';
 import { TelegramUserInput } from './userTracking';
 import { initPaymentsTable } from './payments/repository';
+import { initBroadcastsTable } from './broadcasts/repository';
 
 export interface User {
   telegram_id: number;
@@ -85,6 +86,7 @@ export async function initDb(): Promise<void> {
   `);
 
   await initPaymentsTable();
+  await initBroadcastsTable();
 }
 
 export async function saveUser(user: TelegramUserInput): Promise<User> {
