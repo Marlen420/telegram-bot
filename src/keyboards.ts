@@ -3,7 +3,7 @@ import { Markup } from 'telegraf';
 export const BUTTONS = {
   about: '📋 О форуме',
   prices: '💰 Цены',
-  bonuses: '🎁 Бонусы',
+  bonuses: 'ℹ️ Больше информации',
   tickets: '🎫 Как купить билеты',
 } as const;
 

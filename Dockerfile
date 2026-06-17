@@ -30,5 +30,6 @@ RUN chmod +x scripts/optimize-videos.sh && \
 ENV NODE_ENV=production
 ENV VIDEOS_DIR=/app/videos
 ENV CONTENT_CONFIG_PATH=/app/config/content.json
+ENV PORT=3000
 
 CMD ["node", "dist/index.js"]

@@ -2,8 +2,10 @@ import { Telegraf } from 'telegraf';
 import { config } from './config';
 import { closeDb, getUsersCount, initDb } from './db';
 import { registerHandlers } from './handlers';
+import { startStatsServer } from './server';
 
 const bot = new Telegraf(config.botToken);
+let statsServer: ReturnType<typeof startStatsServer> | undefined;
 
 registerHandlers(bot);
 
@@ -16,11 +18,14 @@ async function main(): Promise<void> {
   await initDb();
   console.log(`Registered users: ${await getUsersCount()}`);
 
+  statsServer = startStatsServer();
+
   await bot.launch();
   console.log('Bot is running');
 
   const shutdown = async (signal: 'SIGINT' | 'SIGTERM') => {
     bot.stop(signal);
+    statsServer?.close();
     await closeDb();
   };
 
