@@ -225,12 +225,41 @@ export function renderStatsPage(data: StatsPageData): string {
       font-size: 0.85rem;
       color: #6b7280;
     }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .export-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: #2563eb;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      border: 1px solid #3b82f6;
+    }
+    .export-btn:hover {
+      background: #1d4ed8;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Mingle Forum Bot</h1>
-    <p class="subtitle">Статистика пользователей и кликов по кнопкам</p>
+    <div class="toolbar">
+      <div>
+        <h1>Mingle Forum Bot</h1>
+        <p class="subtitle">Статистика пользователей и кликов по кнопкам</p>
+      </div>
+      <a class="export-btn" href="/export.json" download>⬇️ Скачать JSON для анализа</a>
+    </div>
 
     <div class="section">
       <h2>Пользователи</h2>

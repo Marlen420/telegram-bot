@@ -3,6 +3,7 @@ import { config } from './config';
 import { getAllUsers, getClickTotals, getUserClickMap, getUserStats } from './db';
 import { getPaymentStats, getRecentPayments } from './payments/repository';
 import { renderStatsPage } from './web/statsPage';
+import { fetchStatsExportData, serializeStatsExport } from './web/statsExport';
 
 function isAuthorized(req: http.IncomingMessage): boolean {
   if (!config.statsPassword) {
@@ -33,9 +34,16 @@ function sendUnauthorized(res: http.ServerResponse): void {
   res.end('Unauthorized');
 }
 
+function exportFilename(): string {
+  const date = new Date().toISOString().slice(0, 10);
+  return `mingle-forum-stats-${date}.json`;
+}
+
 export function startStatsServer(): http.Server {
   const server = http.createServer(async (req, res) => {
-    if (req.url !== '/' && req.url !== '/index.html') {
+    const path = req.url?.split('?')[0];
+
+    if (path !== '/' && path !== '/index.html' && path !== '/export.json') {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Not Found');
       return;
@@ -47,6 +55,18 @@ export function startStatsServer(): http.Server {
     }
 
     try {
+      if (path === '/export.json') {
+        const data = await fetchStatsExportData();
+        const json = serializeStatsExport(data);
+
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${exportFilename()}"`,
+        });
+        res.end(json);
+        return;
+      }
+
       const [stats, users, clickTotals, userClicks, paymentStats, recentPayments] =
         await Promise.all([
           getUserStats(),

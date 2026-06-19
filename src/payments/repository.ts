@@ -136,6 +136,11 @@ export async function getRecentPayments(limit = 50): Promise<Payment[]> {
   return result.rows;
 }
 
+export async function getAllPayments(): Promise<Payment[]> {
+  const result = await pool.query<Payment>('SELECT * FROM payments ORDER BY created_at DESC');
+  return result.rows;
+}
+
 export async function getConfirmedTicketsByUser(): Promise<
   Array<{ telegram_id: number; tickets: string }>
 > {
