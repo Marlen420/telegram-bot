@@ -3,6 +3,7 @@ import { config, resolveQrImagePath } from './config';
 import {
   clearPaymentState,
   getUser,
+  getUsersCount,
   savePendingFio,
   savePendingReceipt,
   setAwaitingPayment,
@@ -11,9 +12,18 @@ import {
 import { forwardPaymentToAdmin, forwardPdfToAdmin, forwardPhotoToAdmin, isPdfDocument } from './forwarding';
 import { backToMenuKeyboard } from './keyboards';
 
+export async function buildSocialProofText(): Promise<string> {
+  const usersCount = await getUsersCount();
+  return config.content.payment.socialProof.replace('{usersCount}', String(usersCount));
+}
+
 export async function showTicketsMenu(ctx: Context): Promise<void> {
   await clearPaymentState(ctx.from!.id);
   await ctx.reply(config.content.sections.tickets.message, config.ticketsKeyboard);
+  await ctx.reply(
+    'Выберите способ оплаты:',
+    config.ticketsInlineKeyboard(config.ticketUrl),
+  );
 }
 
 export async function startQrPaymentFlow(ctx: Context): Promise<void> {
@@ -27,6 +37,9 @@ export async function startQrPaymentFlow(ctx: Context): Promise<void> {
   }
 
   await setAwaitingPayment(ctx.from!.id, true);
+
+  const socialProof = await buildSocialProofText();
+  await ctx.reply(socialProof, config.ticketsKeyboard);
   await ctx.replyWithPhoto(Input.fromLocalFile(qrPath), backToMenuKeyboard);
   await ctx.reply(config.content.payment.qrInstructions, backToMenuKeyboard);
 }
@@ -141,4 +154,26 @@ export async function handleGeneralPdf(ctx: Context, bot: Telegraf): Promise<voi
   }
 
   await forwardPdfToAdmin(ctx, bot, 'PDF от пользователя', document.file_id);
+}
+
+export function startPaymentReminderJob(bot: Telegraf): NodeJS.Timeout {
+  const intervalMs = 10 * 60 * 1000;
+
+  return setInterval(() => {
+    void (async () => {
+      const { getUsersForPaymentReminder, markPaymentReminderSent } = await import('./db');
+      const users = await getUsersForPaymentReminder();
+
+      for (const user of users) {
+        try {
+          await bot.telegram.sendMessage(user.telegram_id, config.content.payment.reminder, {
+            reply_markup: config.ticketsKeyboard.reply_markup,
+          });
+          await markPaymentReminderSent(user.telegram_id);
+        } catch (error) {
+          console.error(`Payment reminder failed for user ${user.telegram_id}:`, error);
+        }
+      }
+    })();
+  }, intervalMs);
 }

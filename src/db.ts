@@ -22,6 +22,8 @@ export interface User {
   pending_receipt_file_id: string | null;
   pending_receipt_kind: string | null;
   pending_fio: string | null;
+  payment_started_at: string | null;
+  payment_reminder_sent: boolean;
   first_seen_at: string;
   last_seen_at: string;
 }
@@ -43,6 +45,8 @@ async function migrateUsersTable(): Promise<void> {
     'pending_receipt_file_id TEXT',
     'pending_receipt_kind TEXT',
     'pending_fio TEXT',
+    'payment_started_at TIMESTAMPTZ',
+    'payment_reminder_sent BOOLEAN DEFAULT false',
   ];
 
   for (const column of columns) {
@@ -156,7 +160,9 @@ export async function setAwaitingPayment(telegramId: number, awaiting: boolean):
       awaiting_payment = true,
       pending_receipt_file_id = NULL,
       pending_receipt_kind = NULL,
-      pending_fio = NULL
+      pending_fio = NULL,
+      payment_started_at = NOW(),
+      payment_reminder_sent = false
     WHERE telegram_id = $1
     `,
     [telegramId],
@@ -197,7 +203,9 @@ export async function clearPaymentState(telegramId: number): Promise<void> {
       awaiting_payment = false,
       pending_receipt_file_id = NULL,
       pending_receipt_kind = NULL,
-      pending_fio = NULL
+      pending_fio = NULL,
+      payment_started_at = NULL,
+      payment_reminder_sent = false
     WHERE telegram_id = $1
     `,
     [telegramId],
@@ -298,6 +306,26 @@ export async function getAllUsers(): Promise<User[]> {
 export async function getUsersCount(): Promise<number> {
   const result = await pool.query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
   return Number(result.rows[0]?.count ?? 0);
+}
+
+export async function getUsersForPaymentReminder(): Promise<User[]> {
+  const result = await pool.query<User>(`
+    SELECT *
+    FROM users
+    WHERE awaiting_payment = true
+      AND payment_reminder_sent = false
+      AND payment_started_at IS NOT NULL
+      AND payment_started_at < NOW() - INTERVAL '2 hours'
+      AND (pending_receipt_file_id IS NULL OR pending_fio IS NULL)
+  `);
+  return result.rows;
+}
+
+export async function markPaymentReminderSent(telegramId: number): Promise<void> {
+  await pool.query(
+    'UPDATE users SET payment_reminder_sent = true WHERE telegram_id = $1',
+    [telegramId],
+  );
 }
 
 export async function closeDb(): Promise<void> {

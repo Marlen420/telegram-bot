@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { backToMenuKeyboard, mainMenuKeyboard, ticketsKeyboard } from './keyboards';
+import { backToMenuKeyboard, buyInlineKeyboard, mainMenuKeyboard, ticketsInlineKeyboard, ticketsKeyboard, welcomeInlineKeyboard } from './keyboards';
 
 dotenv.config();
 
@@ -17,6 +17,7 @@ export interface VideoSection {
   message: string;
   caption: string;
   video: string;
+  cta?: string;
 }
 
 export interface TicketsSection {
@@ -24,15 +25,18 @@ export interface TicketsSection {
 }
 
 export interface PaymentTexts {
+  socialProof: string;
   qrInstructions: string;
   needFio: string;
   needReceipt: string;
   invalidReceipt: string;
   completed: string;
+  reminder: string;
 }
 
 export interface ContentConfig {
   welcome: string;
+  welcomeCta?: string;
   fallback: string;
   sections: {
     about: VideoSection;
@@ -77,6 +81,9 @@ export const config = {
   mainMenuKeyboard,
   ticketsKeyboard,
   backToMenuKeyboard,
+  welcomeInlineKeyboard,
+  buyInlineKeyboard,
+  ticketsInlineKeyboard,
 };
 
 const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.MP4', '.mov', '.MOV'];

@@ -24,7 +24,7 @@ export const ACTION_LABELS: Record<ClickAction, string> = {
   about: 'О форуме',
   prices: 'Цены',
   bonuses: 'Подробнее о форуме',
-  tickets: 'Как купить билеты',
+  tickets: 'Купить билет',
   pay_qr: 'Оплатить по QR',
   back: 'Вернуться в меню',
   other: 'Другое',

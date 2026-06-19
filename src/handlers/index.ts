@@ -3,7 +3,7 @@ import { message } from 'telegraf/filters';
 import { ClickAction } from '../clicks';
 import { config, resolveImagePath, resolveVideoPath } from '../config';
 import { clearPaymentState, getUser, recordClick, saveUser } from '../db';
-import { BUTTONS, MAIN_MENU_BUTTON_TEXTS } from '../keyboards';
+import { BUTTONS, CTA_CALLBACKS, MAIN_MENU_BUTTON_TEXTS } from '../keyboards';
 import {
   handleGeneralPdf,
   handleGeneralPhoto,
@@ -47,10 +47,11 @@ function isMainMenuButton(text: string): boolean {
   return (MAIN_MENU_BUTTON_TEXTS as readonly string[]).includes(text);
 }
 
-async function sendLocalVideo(
+async function sendSectionContent(
   ctx: Context,
   videoFile: string,
   messageText: string,
+  ctaText?: string,
 ): Promise<void> {
   const filePath = resolveVideoPath(videoFile);
   if (!filePath) {
@@ -68,6 +69,10 @@ async function sendLocalVideo(
     supports_streaming: true,
   });
   await ctx.reply(messageText.trim() || config.content.fallback, config.mainMenuKeyboard);
+
+  if (ctaText) {
+      await ctx.reply(ctaText, config.buyInlineKeyboard());
+  }
 }
 
 async function sendLocalImage(ctx: Context, imageName: string): Promise<void> {
@@ -78,6 +83,30 @@ async function sendLocalImage(ctx: Context, imageName: string): Promise<void> {
   }
 
   await ctx.replyWithPhoto(Input.fromLocalFile(filePath));
+}
+
+async function handleAboutSection(ctx: Context): Promise<void> {
+  await trackAction(ctx, 'about');
+  await clearPaymentState(ctx.from!.id);
+  const section = config.content.sections.about;
+  await sendLocalImage(ctx, 'information');
+  await sendSectionContent(ctx, section.video, section.message, section.cta);
+}
+
+async function handlePricesSection(ctx: Context): Promise<void> {
+  await trackAction(ctx, 'prices');
+  await clearPaymentState(ctx.from!.id);
+  const section = config.content.sections.prices;
+  await sendLocalImage(ctx, 'standart-tariff');
+  await sendLocalImage(ctx, 'creator-tariff');
+  await sendSectionContent(ctx, section.video, section.message, section.cta);
+}
+
+async function handleBonusesSection(ctx: Context): Promise<void> {
+  await trackAction(ctx, 'bonuses');
+  await clearPaymentState(ctx.from!.id);
+  const section = config.content.sections.bonuses;
+  await sendSectionContent(ctx, section.video, section.message, section.cta);
 }
 
 export function registerHandlers(bot: Telegraf<Context>): void {
@@ -94,6 +123,9 @@ export function registerHandlers(bot: Telegraf<Context>): void {
       return;
     }
     await ctx.reply(content.welcome, config.mainMenuKeyboard);
+    if (content.welcomeCta) {
+      await ctx.reply(content.welcomeCta, config.welcomeInlineKeyboard());
+    }
   });
 
   bot.hears(BUTTONS.back, async (ctx) => {
@@ -101,29 +133,9 @@ export function registerHandlers(bot: Telegraf<Context>): void {
     await returnToMainMenu(ctx);
   });
 
-  bot.hears(BUTTONS.about, async (ctx) => {
-    await trackAction(ctx, 'about');
-    await clearPaymentState(ctx.from!.id);
-    const section = content.sections.about;
-    await sendLocalImage(ctx, 'information');
-    await sendLocalVideo(ctx, section.video, section.message);
-  });
-
-  bot.hears(BUTTONS.prices, async (ctx) => {
-    await trackAction(ctx, 'prices');
-    await clearPaymentState(ctx.from!.id);
-    const section = content.sections.prices;
-    await sendLocalImage(ctx, 'standart-tariff');
-    await sendLocalImage(ctx, 'creator-tariff');
-    await sendLocalVideo(ctx, section.video, section.message);
-  });
-
-  bot.hears(BUTTONS.bonuses, async (ctx) => {
-    await trackAction(ctx, 'bonuses');
-    await clearPaymentState(ctx.from!.id);
-    const section = content.sections.bonuses;
-    await sendLocalVideo(ctx, section.video, section.message);
-  });
+  bot.hears(BUTTONS.about, handleAboutSection);
+  bot.hears(BUTTONS.prices, handlePricesSection);
+  bot.hears(BUTTONS.bonuses, handleBonusesSection);
 
   bot.hears(BUTTONS.tickets, async (ctx) => {
     await trackAction(ctx, 'tickets');
@@ -133,6 +145,28 @@ export function registerHandlers(bot: Telegraf<Context>): void {
   bot.hears(BUTTONS.payQr, async (ctx) => {
     await trackAction(ctx, 'pay_qr');
     await startQrPaymentFlow(ctx);
+  });
+
+  bot.action(CTA_CALLBACKS.payQr, async (ctx) => {
+    await ctx.answerCbQuery();
+    await trackAction(ctx, 'pay_qr');
+    await startQrPaymentFlow(ctx);
+  });
+
+  bot.action(CTA_CALLBACKS.tickets, async (ctx) => {
+    await ctx.answerCbQuery();
+    await trackAction(ctx, 'tickets');
+    await showTicketsMenu(ctx);
+  });
+
+  bot.action('nav:about', async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleAboutSection(ctx);
+  });
+
+  bot.action('nav:prices', async (ctx) => {
+    await ctx.answerCbQuery();
+    await handlePricesSection(ctx);
   });
 
   bot.on(message('contact'), async (ctx) => {
